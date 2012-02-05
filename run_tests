@@ -1,0 +1,4 @@
+#!/bin/bash
+php ./y_test_runner.php --configuration config/phpunit_config.xml --exclude-group=brute "$@"
+ret=$?
+exit $ret

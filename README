@@ -1,0 +1,148 @@
+			      ytest 0.9
+			      ---------
+
+For license, see LICENSE
+For contributors, see CONTRIBUTORS
+
+1. What is ytest ?
+------------------
+
+A PHP library extending PHPUnit, and based on the runkit extension.
+Useful mainly to stub/mock private and static methods easily.
+Also provides some other helpers.
+
+Has been used in a real-life project of the real-world,
+so has a chance to be useful...
+
+2. Requirements:
+----------------
+
+ - PHP >= 5.2 on GNU/Linux
+ - PHPUnit >= 3.4.12
+ - runkit ( The fork which works, by D.Zenovich  https://github.com/zenovich/runkit )
+ 
+ + MySQL 5 as an optional dependency (required for ytest's sample)
+
+3. Installation (on GNU/linux)
+------------------------------
+
+3.1 Make ytest's sample work in your PHP environment
+----------------------------------------------------
+
+3.1.1
+-----
+  Extract ytest's archive in some folder, say "/home/foo/libs/ytest".
+  You get something like this:
+
+  -- ytest
+     `
+     |-- config
+     |-- docs
+     |-- tests
+     `-- libs
+         `-- ytest
+
+3.1.2
+-----
+  Install PHPUnit >= 3.4.12 if you haven't already.  
+  Assuming PHPUnit's phpunit.php lies in /home/foo/libs/phpunit,
+  make a symbolic link so that ytest can find it:
+
+  $ cd /home/foo/ytest
+  $ ln -s /home/foo/libs/phpunit libs/phpunit
+
+3.1.3
+-----
+  Install Dmitry Zenovich's runkit version.
+  You can take the latest version here:
+  https://github.com/zenovich/runkit/downloads
+
+  You'll have to build runkit yourself, and install it as a PHP extension 
+  in your system. Here's a quick summary of how to do it (which might be outdated):
+
+  $ cd runkit-1.0.3
+  $ phpize
+  $ ./configure
+  $ make
+  $ sudo make install
+  $ sudo nano /etc/php5/cli/php.ini
+
+    With nano, add the following lines at the end of your php.ini (for CLI since
+    the unit tests will be run on the command line):
+    
+      extension=runkit.so
+      runkit.internal_override=1
+
+3.1.4
+-----
+
+Setup MySQL, or you may have some troubles:
+  - Create a database named "ytest".
+  - Create a user named "ytest" with full privileges on the "ytest" database.
+
+3.1.5
+-----
+
+You should be able to run ytest's example test like this:
+    $ cd /home/foo/ytest
+    $ ./run_tests
+
+You should see something like this:
+
+    PHPUnit 3.4.12 by Sebastian Bergmann.
+
+    ...............................
+
+    Time: 0 seconds, Memory: 4.75Mb
+
+    OK (31 tests, 48 assertions)
+
+This means that ytest's sample test, tests/FooBarTest.php,
+has been executed correctly.
+(You can take a look at this test, but it's a bit boring,
+you'll probably be better with the ytest docs.)
+
+
+3.2 Integrating ytest with your own test suite
+----------------------------------------------
+
+Now that ytest is functional on your PHP system,
+there are two cases:
+
+- If you have no unit tests yet, you can simply add more test files
+  along FooBarTest.php in ytest/tests to test your own stuff.
+  To access the ytest extensions from your test cases, you simply
+  have to make your test cases inherit from yTest_CustomTestCase.
+  To run your tests, use the run_tests script.
+
+- If you already have a test suite (and maybe some 
+  helper scripts around), you may either:
+
+  - Simply put all your existing test files in ytest/tests,
+    and see if it works and suits you. This is the easy way.
+
+  - Or, integrate only the bare ytest library in your system,
+    by putting ytest/libs/ytest in your PHP include path.
+
+    In this case you'll have to require the main ytest file
+    from your test scripts, for example like this:
+
+    	 require_once 'ytest/libs/ytest/ytest.php';
+    
+    Then you'll have to initialize ytest at the beginning
+    of your test suite (like what is done in ytest/Bootstrap.php),
+    something like this:
+
+	 yTest_init("ytest/config/ytest_config.php",   // path to your config file for ytest
+	            "ytest/libs/ytest",                // path to the ytest library folder
+		    "ytest/libs/phpunit"               // path to PHPUnit
+         	   );
+  
+    You'll have to tune the folders (and probably use absolute paths).	 
+
+4. And now ?
+------------
+
+Check the docs to learn about ytest's features.
+Docs are coming soon! :)
+
