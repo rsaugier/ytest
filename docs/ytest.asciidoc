@@ -16,7 +16,7 @@ to allow stubbing/mocking things that can't easily changed otherwise:
 - static methods.
 - functions, including built-in PHP functions.
 
-*ytest* has been used in a test suite of a real world project, so you can trust it
+*ytest* has been used in a test suite of a real world project, so it might help you
 (even if some parts still need some polish obviously).
 
 [[isolation]]
