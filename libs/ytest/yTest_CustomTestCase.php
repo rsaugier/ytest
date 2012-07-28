@@ -128,6 +128,10 @@ abstract class yTest_CustomTestCase extends PHPUnit_Framework_TestCase {
 
     public final function getProperty($object, $propertyName) {
         $className = get_class($object);
+        $isPublic = yTest_Reflection::isPropertyPublic($className, $propertyName);
+        if (! $isPublic) {
+            $this->letMeAccess($className, $propertyName);
+        }
         return call_user_func(
             array($object, yTest_AddPublicAccessors::getGetterName($className, $propertyName)));
 
