@@ -16,6 +16,7 @@ to allow stubbing/mocking things that can't easily changed otherwise:
 - static methods.
 - functions, including built-in PHP functions.
 
+[[isolation]]
 1.2. Isolation in automated testing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -60,21 +61,35 @@ libraries such as runkit and ytest kick in.
 In most scripting languages, it is possible to redirect at runtime any private method
 or function.
 For obscure (?) reasons, this is not possible in PHP, which tries to mimic strongly
-typed languages in these aspects.
+typed languages in these aspects. You can't rebind an instance method or function
+in PHP as you can do it, for example, in Python, where functions are first-class objects:
 
-Hopefully, the  
+--------------------------------------------------------------------------------
+def myPythonFunction():
+    return 42
 
+def someOtherPythonFunction():
+    return "foo"
 
+myPythonFunction=someOtherPythonFunction
+--------------------------------------------------------------------------------
 
-2. Setting up ytest
--------------------
+Hopefully, brave people have created the *runkit* extension which allows to do
+such magic things in PHP as well.
+
+*ytest* is a rather simple library built on top of runkit, which makes it easier
+to use with *phpunit* tests (If you ever don't know *phpunit*, it's simply the best
+implementation of the *xUnit* family of tools for PHP).
+
+2. Setting up ytest and its dependencies
+----------------------------------------
 
 2.1 Requirements
 ~~~~~~~~~~~~~~~~
 
  - PHP >= 5.2 on GNU/Linux
  - PHPUnit >= 3.4.12
- - runkit ( The fork which works, by D.Zenovich  https://github.com/zenovich/runkit )
+ - runkit ( Actually, the fork which works, by D.Zenovich  https://github.com/zenovich/runkit )
  - MySQL 5 as an optional dependency (required for ytest's sample)
 
 2.2 Make ytest's sample work in your PHP environment
@@ -108,7 +123,9 @@ make a symbolic link so that ytest can find it:
 Step 3
 ^^^^^^
 
-Install Dmitry Zenovich's runkit version.
+Install the excellent version of runkit by Dmitry Zenovich,
+which has great bugfixes included.
+
 You can take the latest version here:
     https://github.com/zenovich/runkit/downloads
 
@@ -166,6 +183,7 @@ has been executed correctly.
 you'll probably be better with the ytest docs.)
 
 
+[[integrating_ytest]]
 2.3 Integrating ytest with your own test suite
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -211,7 +229,8 @@ You'll have to tune the folders (and probably use absolute paths).
 3.1. Example test
 ~~~~~~~~~~~~~~~~~
 
-After you have integrated ytest in your PHP unit test suite (see 2.3.), using it becomes very easy.
+After you have integrated ytest in your PHP unit test suite (see <<integrating_ytest, ytest integration chapter>>),
+using it becomes very easy.
 You simply need to make your test classes inherit from *yTest_CustomTestCase*:
 
 ---------------------------------------------------------
@@ -224,8 +243,8 @@ class FooBarTest extends yTest_CustomTestCase {
 
 yTest_CustomTestCase exposes almost all of ytest functionality through its instance methods.
 
-3.2. Accessing private members : letMeXXX
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3.2. Accessing private members : letMeCall() and letMeAccess()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Suppose we have a simple class with private methods and members:
 
@@ -249,18 +268,193 @@ To access baz and bar() in our test, we use letMeCall() and letMeAccess():
 class FooBarTest extends yTest_CustomTestCase {
 
     public function testBarBaz() {
+        $this->letMeCall("FooBar", "bar");     <1>
+        $this->letMeAccess("FooBar", "baz");   <2>
+
+        $foobar = new FooBar();
+
+        $this->assertEquals(42, $this->getProperty($foobar, "baz"); <3>
+        $this->setProperty($foobar, "baz", 43);
+
+        $this->assertEquals(86, $foobar->ytx_call_bar(2));  <4>
+    }
+}
+---------------------------------------------------------
+
+<1> *letMeCall(className, methodName)* allows you to call a private/protected instance
+    or static method indirectly for the scope of the current test.
+<2> *letMeAccess(className, fieldName)* allows you to access private/protected fields
+    indirectly for the scope of the current test.
+<3> To get/set a private or protected field, use *setProperty()* and *getProperty()*
+    after calling letMeAccess()
+<4> To call a private/protected method, use the automatically generated proxy method
+    *ytx_call_originalMethodName*.
+
+Of course, letMeCall() and letMeAccess() lets you access fields and methods for *all*
+instances of a given class. It is not yet possible to restrict the access to a 
+specific instance.
+
+Since the effect of letMeCall() or letMeAccess() remains during the current test,
+it is a good practice to put these in the *setUp()* method of your test class.
+We can therefore rewrite the preceding example this way:
+
+----------------------------------------------------------
+
+class FooBarTest extends yTest_CustomTestCase {
+
+    public function setUp() {
         $this->letMeCall("FooBar", "bar");
         $this->letMeAccess("FooBar", "baz");
+    }
 
+    public function testBarBaz() {
         $foobar = new FooBar();
 
         $this->assertEquals(42, $this->getProperty($foobar, "baz");
         $this->setProperty($foobar, "baz", 43);
 
-        $this->assertEquals(84, $foobar->ytx_call_bar(2));
+        $this->assertEquals(86, $foobar->ytx_call_bar(2));
     }
 }
+
+---------------------------------------------------------- 
+
+You can also use letMeCall() and letMeAccess() on static fields and methods,
+but the way to do it changes for a few details:
+
 ---------------------------------------------------------
 
-letMeAccess() lets you get and set instance and static fields with setProperty() and getProperty().
+class Foo
+{
+    private static $staticBaz = 42;
 
+    private static function staticBar($arg)
+    {
+        return $baz * $arg;
+    }
+}
+
+class FooBarTest extends yTest_CustomTestCase {
+
+    public function setUp() {
+        $this->letMeCall("FooBar", "staticBar");
+        $this->letMeAccess("FooBar", "staticBaz");
+    }
+
+    public function testBarBaz() {
+        $foobar = new FooBar();
+
+        $this->assertEquals(42, $this->getStaticProperty($foobar, "staticBaz");   <1>
+        $this->setStaticProperty($foobar, "staticBaz", 43);
+
+        $this->assertEquals(86, FooBar::ytx_call_staticBar(2));   <2>
+    }
+}
+
+---------------------------------------------------------
+
+<1> After calling letMeAccess() the same way as for instance fields,
+you have to use *getStaticProperty* and *setStaticProperty* instead
+of *getProperty* and *setProperty*.
+<2> To call the private static method, use the generated static proxy
+    *ytx_call_staticBar* on the class.
+
+[NOTE]
+================================================================================
+Internally, letMeAccess() also generates some getter and setter methods
+that are actually called by getProperty() and setProperty() to set
+the target field.
+
+For an instance field called "fooBar" in a class "Foo" these proxies are:
+
+- ytx_get_fooBar() -> value
+- ytx_set_fooBar(value)
+
+For a static field "fooBar" the proxies are:
+
+- Foo::ytx_getStatic_fooBar() -> value
+- Foo::ytx_setStatic_fooBar(value)
+
+You probably wonder why there is no equivalent of the setProperty()
+for calling ytx_call_methodName(), like some *callPrivateMethod()* helper.
+Actually, writing a generic method like this seems difficult in PHP,
+the problem being the handling of reference parameters.
+================================================================================
+
+[WARNING]
+================================================================================
+ytest uses the magic prefix *ytx_* for all its automatically generated proxy methods.
+If your project uses this prefix, you are not completely doomed yet:
+you'll have to change it manually in yTest_AbstractCodeChange.php in ytest's sources!
+================================================================================
+
+3.3. Rewiring methods
+~~~~~~~~~~~~~~~~~~~~~
+
+Method "rewiring" in ytest simply means to rebind it dynamically to another method.
+With ytest, you can rewire any class method (static or instance) and any function
+to a *public instance method of another object*.
+Rewiring to a function is not supported, but is not really needed, since you
+can always write some class to achieve what you need.
+
+Here is a simple example of rewiring an *instance method* to another *instance method*,
+supposing we want to isolate the system under testd "Foo" from its dependency
+"FooDependency" (see the chapter on <<isolation>> for the philosophy behind this).
+
+--------------------------------------------------------------------------------
+
+class Foo
+{
+    public function doStuff()
+    {
+        $dep = new Dependency();
+        return $dep->bar(2);
+    }
+}
+
+class Dependency
+{
+    private $baz = 40;
+
+    private function bar($arg)
+    {
+        return $baz + $arg;
+    }
+}
+
+class DummyDependency
+{
+    public function dummyBar()
+    {
+        return 38;
+    }
+}
+
+class FooBarTest extends yTest_CustomTestCase {
+
+    public function testFoo() {
+        $foo = new Foo();
+        $this->assertEquals(42, $foo->doStuff());   // call the original, we get 40 + 2 = 42
+
+        // now rewire bar()
+        $dummy = new DummyDependency();
+        $this->rewireMethod("FooDependency", "bar", $dummy, "dummyBar");
+        $this->assertEquals(38, $foo->doStuff());   // dummy version gets called
+        $this->assertEquals(38, $foo->doStuff());   // dummy version still gets called
+    }
+}
+
+-------------------------------------------------------------------------------
+
+*rewireMethod(className, originalMethodName, dummyInstance, dummyMethodName)* takes 3 or 4 arguments:
+
+- The name of the class containing the original method to be rewired.
+- The name of the original method to be rewired.
+- An *object instance* which exposes the dummy method.
+- The name of the dummy method, which will receive the calls *instead of* the original method.
+
+[NOTE]
+================================================================================
+The 4th argument is actually optional: If you omit it, ytest will assume that the 
+dummy method has the same name as the original method.
+================================================================================
