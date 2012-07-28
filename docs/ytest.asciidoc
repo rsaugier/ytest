@@ -1,0 +1,266 @@
+ytest documentation
+===================
+Rodolphe Saugier <rodolphe.saugier@gmail.com>
+v1.0
+
+1. Introduction
+---------------
+
+1.1. Purpose
+~~~~~~~~~~~~
+
+yTest is a PHP 5 library extending PHPUnit, leveraging the power of the runkit extension
+to allow stubbing/mocking things that can't easily changed otherwise:
+
+- private methods.
+- static methods.
+- functions, including built-in PHP functions.
+
+1.2. Isolation in automated testing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When writing automated tests to a project, you need to *isolate* the code
+you are testing (often called *SUT*, System Under Test) from other parts of 
+the whole system that it depends on (often called *DOC*, Depended-on component).
+
+The SUT can be anything from a method, class, or whole application, depending on
+the kind of tests you are writing (unit tests, integration tests, functional tests...).
+
+To isolate the SUT, the DOCs dependencies must be replaced by other "fake" objects
+during the automated test. These dummy objects/functions can be configured to return
+whatever the SUT needs to work.
+Replacing a function or method by a test version is often called "stubbing" or "mocking"
+(if it isn't "faking" !).
+
+[NOTE]
+=========================================================================================================
+Some definitions:
+
+- A *stub* is a static object version designed specifically for a test, returning hard-coded values
+specific to the test. 
+- A *mock object* is a more elaborate fake object which can be configured to dynamically return values
+expected by the SUT during the test, but which can also verify the calls made to it by the SUT.
+=========================================================================================================
+
+In a system designed up-front to be tested automatically, there are standard techniques
+to help replacing the DOCs by their test versions. The most common is *dependency injection*,
+which helps achieve *IOC* (Inversion of Control). The basic principle is easy:
+Each dependency of each component of the whole system must be configurable at runtime.
+Dependency injection frameworks help achieving this by expliciting all dependencies
+in a configuration file.
+
+If you are building a system from scratch, and want to test it automatically,
+you probably want to follow IOC principles from the beginning to allow component isolation.
+But for legacy systems, there is often no easy way to achieve isolation. This is where
+libraries such as runkit and ytest kick in.
+
+1.3. The case of PHP
+~~~~~~~~~~~~~~~~~~~~
+
+In most scripting languages, it is possible to redirect at runtime any private method
+or function.
+For obscure (?) reasons, this is not possible in PHP, which tries to mimic strongly
+typed languages in these aspects.
+
+Hopefully, the  
+
+
+
+2. Setting up ytest
+-------------------
+
+2.1 Requirements
+~~~~~~~~~~~~~~~~
+
+ - PHP >= 5.2 on GNU/Linux
+ - PHPUnit >= 3.4.12
+ - runkit ( The fork which works, by D.Zenovich  https://github.com/zenovich/runkit )
+ - MySQL 5 as an optional dependency (required for ytest's sample)
+
+2.2 Make ytest's sample work in your PHP environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Step 1
+^^^^^^
+
+Extract ytest's archive in some folder, say "/home/foo/libs/ytest".
+You get something like this:
+
+--------------------------------------
+  -- ytest
+     |-- config
+     |-- docs
+     |-- tests
+     `-- libs
+         `-- ytest
+--------------------------------------
+
+Step 2
+^^^^^^
+
+Install PHPUnit >= 3.4.12 if you haven't already.  
+Assuming PHPUnit's phpunit.php lies in /home/foo/libs/phpunit,
+make a symbolic link so that ytest can find it:
+
+  $ cd /home/foo/ytest
+  $ ln -s /home/foo/libs/phpunit libs/phpunit
+
+Step 3
+^^^^^^
+
+Install Dmitry Zenovich's runkit version.
+You can take the latest version here:
+    https://github.com/zenovich/runkit/downloads
+
+You'll have to build runkit yourself, and install it as a PHP extension 
+in your system. Here's a quick summary of how to do it (which might be outdated):
+
+-----------------------------------------
+  $ cd runkit-1.0.3
+  $ phpize
+  $ ./configure
+  $ make
+  $ sudo make install
+  $ sudo nano /etc/php5/cli/php.ini
+-----------------------------------------
+
+With some editor, add the following lines at the end of your php.ini (for CLI since
+the unit tests will be run on the command line):
+    
+--------------------------------
+  extension=runkit.so
+  runkit.internal_override=1
+--------------------------------
+
+Step 4
+^^^^^^
+
+Setup a test database in MySql, or ytest's main self-test won't work:
+
+- Create a database named "ytest".
+
+- Create a user named "ytest" with full privileges on the "ytest" database.
+
+Step 5
+^^^^^^
+
+You should be able to run ytest's example test like this:
+    $ cd /home/foo/ytest
+    $ ./run_tests
+
+You should see something like this:
+
+--------------------------------------------------------
+    PHPUnit 3.4.12 by Sebastian Bergmann.
+
+    ...............................
+
+    Time: 0 seconds, Memory: 4.75Mb
+
+    OK (31 tests, 48 assertions)
+-------------------------------------------------------
+
+This means that ytest's sample test, tests/FooBarTest.php,
+has been executed correctly.
+(You can take a look at this test, but it's a bit boring,
+you'll probably be better with the ytest docs.)
+
+
+2.3 Integrating ytest with your own test suite
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Now that ytest is functional on your PHP system,
+there are two cases:
+
+- If you have no unit tests yet, you can simply add more test files
+  along FooBarTest.php in ytest/tests to test your own stuff.
+  To access the ytest extensions from your test cases, you simply
+  have to make your test cases inherit from yTest_CustomTestCase.
+  To run your tests, use the run_tests script.
+
+- If you already have a test suite (and maybe some 
+  helper scripts around), you may either:
+
+  * Simply put all your existing test files in ytest/tests,
+    and see if it works and suits you. This is the easy way.
+
+  * Or, integrate only the bare ytest library in your system,
+    by putting ytest/libs/ytest in your PHP include path.
+    In this case you'll have to require the main ytest file
+    from your test scripts, for example like this:
++
+--
+-------------------------------------------------------------------------------------
+require_once 'ytest/libs/ytest/ytest.php';
+-------------------------------------------------------------------------------------
+Then you'll have to initialize ytest at the beginning
+of your test suite (like what is done in ytest/Bootstrap.php),
+something like this:
+-------------------------------------------------------------------------------------
+yTest_init("ytest/config/ytest_config.php",   // path to your config file for ytest
+	   "ytest/libs/ytest",                // path to the ytest library folder
+           "ytest/libs/phpunit"               // path to PHPUnit
+          );
+-------------------------------------------------------------------------------------
+You'll have to tune the folders (and probably use absolute paths).
+--
+
+3. Using ytest
+--------------
+
+3.1. Example test
+~~~~~~~~~~~~~~~~~
+
+After you have integrated ytest in your PHP unit test suite (see 2.3.), using it becomes very easy.
+You simply need to make your test classes inherit from *yTest_CustomTestCase*:
+
+---------------------------------------------------------
+class FooBarTest extends yTest_CustomTestCase {
+    public function testSomething() {
+        // test stuff
+    }
+}
+---------------------------------------------------------
+
+yTest_CustomTestCase exposes almost all of ytest functionality through its instance methods.
+
+3.2. Accessing private members : letMeXXX
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Suppose we have a simple class with private methods and members:
+
+---------------------------------------------------------
+
+class Foo
+{
+    private $baz = 42;
+
+    private function bar($arg)
+    {
+        return $baz * $arg;
+    }
+}
+
+---------------------------------------------------------
+
+To access baz and bar() in our test, we use letMeCall() and letMeAccess():
+
+---------------------------------------------------------
+class FooBarTest extends yTest_CustomTestCase {
+
+    public function testBarBaz() {
+        $this->letMeCall("FooBar", "bar");
+        $this->letMeAccess("FooBar", "baz");
+
+        $foobar = new FooBar();
+
+        $this->assertEquals(42, $this->getProperty($foobar, "baz");
+        $this->setProperty($foobar, "baz", 43);
+
+        $this->assertEquals(84, $foobar->ytx_call_bar(2));
+    }
+}
+---------------------------------------------------------
+
+letMeAccess() lets you get and set instance and static fields with setProperty() and getProperty().
+
